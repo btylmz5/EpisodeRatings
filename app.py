@@ -5,9 +5,19 @@ import requests
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, BoundaryNorm
 import io
+import os
 
 # TMDb API settings
-TMDB_API_KEY = "992b2adfe2896045dc0befb6c8fd7c09"  # Replace with your TMDb key
+def _load_api_key() -> str:
+    """Read the TMDb key from Streamlit secrets or the TMDB_API_KEY env var."""
+    try:
+        if "TMDB_API_KEY" in st.secrets:
+            return st.secrets["TMDB_API_KEY"]
+    except Exception:
+        pass
+    return os.environ.get("TMDB_API_KEY", "")
+
+TMDB_API_KEY = _load_api_key()
 TMDB_SEARCH_URL = "https://api.themoviedb.org/3/search/tv"
 TMDB_SERIES_DETAILS_URL = "https://api.themoviedb.org/3/tv/{series_id}"
 TMDB_EPISODES_URL = "https://api.themoviedb.org/3/tv/{series_id}/season/{season_num}"
@@ -17,6 +27,13 @@ TMDB_IMG_BASE = "https://image.tmdb.org/t/p/w500"
 # Page configuration
 st.set_page_config(page_title="TV Series Ratings Heatmap", layout="wide")
 st.title("📺 TV Series Ratings Heatmap")
+
+if not TMDB_API_KEY:
+    st.error(
+        "No TMDb API key found. Add `TMDB_API_KEY` to `.streamlit/secrets.toml` "
+        "or set it as an environment variable. See the README."
+    )
+    st.stop()
 
 # TMDb search helper
 @st.cache_data(show_spinner=False)
@@ -50,7 +67,11 @@ if st.sidebar.button("Search"):
     if not query.strip():
         st.sidebar.error("Please enter a series name.")
         st.stop()
-    results = search_tmdb(query)
+    # Keep results across reruns so picking another series from the list works
+    st.session_state["results"] = search_tmdb(query)
+
+if "results" in st.session_state:
+    results = st.session_state["results"]
     if not results:
         st.sidebar.error("No series found. Try another name.")
         st.stop()
